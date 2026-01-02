@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Logs
+*.log
+*.log.*
+
+# Model files (too large for git - ~87MB)
+finsmart-ai-finetuned-model/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secrets
+.secrets/
+*.json
+!package.json
+!tsconfig.json
+!components.json
+!firebase.json
+
+# Downloaded models (jika ada)
+finsmart-ai-finetuned-model-downloaded/

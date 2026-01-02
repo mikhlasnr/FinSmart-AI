@@ -1,0 +1,16 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "**/__pycache__",
+        "**/venv",
+        "**/.env",
+        "**/*.pyc",
+        "**/IMPLEMENTATION_NOTES.md"
+      ],
+      "runtime": "python311"
+    }
+  ]
+}

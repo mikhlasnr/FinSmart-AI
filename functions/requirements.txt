@@ -1,0 +1,22 @@
+# Firebase Functions Gen 2 Dependencies untuk AI Scoring
+
+# Firebase Functions Gen 2
+firebase-functions>=1.0.0
+firebase-admin>=6.0.0
+
+# AI/ML dependencies
+sentence-transformers==2.7.0
+torch==2.1.0
+transformers==4.36.0
+numpy==1.24.3
+scikit-learn==1.3.2
+
+# Utilities
+google-cloud-storage==2.14.0
+
+# Note:
+# - torch dan transformers akan di-download otomatis oleh sentence-transformers
+# - Pastikan Cloud Function memiliki memory minimal 1GB untuk model
+# - Cold start bisa memakan waktu 30-60 detik untuk download dan load model pertama kali
+# - Model akan di-download dari Firebase Storage ke /tmp/ saat cold start
+
