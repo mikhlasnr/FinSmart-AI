@@ -9,6 +9,9 @@ env/
 ENV/
 .venv
 
+# Firebase Functions virtual environment
+functions/venv/
+
 # Firebase
 .firebase/
 .firebaserc

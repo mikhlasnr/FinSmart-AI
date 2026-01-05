@@ -59,5 +59,17 @@ Ikuti panduan di **`STEP_BY_STEP_INTEGRATION.md`** untuk:
 
 - ✅ Model sudah di-train
 - ✅ Model sudah di-upload ke Firebase Storage
-- ⏳ Cloud Function siap untuk deploy
-- ⏳ Integrasi dengan Next.js siap
+- ✅ Cloud Function sudah di-deploy
+- ✅ Endpoint: `https://score-exam-nccr5oudcq-as.a.run.app`
+- ⏳ Integrasi dengan Next.js (update `.env.local` dengan URL endpoint)
+
+---
+
+## 🚀 Quick Setup Next.js
+
+**Update `.env.local` di `FinSmart/`:**
+```env
+AI_SCORING_URL=https://score-exam-nccr5oudcq-as.a.run.app
+```
+
+Lihat **`QUICK_SETUP_ENDPOINT.md`** untuk panduan lengkap.

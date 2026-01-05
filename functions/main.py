@@ -14,16 +14,17 @@ Notebook Reference: finetuning-model.ipynb
 
 from firebase_functions import https_fn
 from firebase_functions.options import set_global_options
-from firebase_admin import initialize_app, storage
-from sentence_transformers import SentenceTransformer, util
+# Defer import firebase_admin dan sentence_transformers untuk avoid deployment timeout
+# from firebase_admin import initialize_app, storage
+# from sentence_transformers import SentenceTransformer, util
 import json
 import os
 
 # Global options
 set_global_options(max_instances=10, region="asia-southeast1")
 
-# Initialize Firebase Admin
-initialize_app()
+# Initialize Firebase Admin (lazy - akan di-initialize saat diperlukan)
+# initialize_app()  # Defer initialization untuk avoid deployment timeout
 
 # Konfigurasi Firebase Storage
 # Model disimpan di Firebase Storage setelah fine-tuning di notebook
@@ -49,6 +50,15 @@ def load_model_from_firebase_storage():
     print(f"Loading model from Firebase Storage: {MODEL_STORAGE_PATH}")
 
     try:
+        # Import firebase_admin saat diperlukan (lazy import)
+        from firebase_admin import initialize_app, storage, get_app
+
+        # Initialize Firebase Admin jika belum
+        try:
+            get_app()
+        except ValueError:
+            initialize_app()
+
         # Get default bucket (Firebase Storage bucket)
         bucket = storage.bucket()
 
@@ -82,6 +92,9 @@ def load_model_from_firebase_storage():
 
         print(f"Downloaded {len(downloaded_files)} files from Firebase Storage")
 
+        # Import SentenceTransformer saat diperlukan (lazy import)
+        from sentence_transformers import SentenceTransformer
+
         # Load model dari local path
         model = SentenceTransformer(LOCAL_MODEL_PATH)
         _model_loaded = True
@@ -90,17 +103,29 @@ def load_model_from_firebase_storage():
         return model
 
     except Exception as e:
-        print(f"❌ Error loading model from Firebase Storage: {e}")
+        import traceback
+        error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        print(f"❌ Error loading model from Firebase Storage: {error_msg}")
+        print(f"Traceback: {error_traceback}")
         print("Falling back to HuggingFace pre-trained model...")
-        # Fallback ke pre-trained model
-        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-        _model_loaded = True
-        return model
+        try:
+            # Import SentenceTransformer saat diperlukan (lazy import)
+            from sentence_transformers import SentenceTransformer
+
+            # Fallback ke pre-trained model
+            model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+            _model_loaded = True
+            print("✅ Fallback model loaded successfully")
+            return model
+        except Exception as fallback_error:
+            print(f"❌ Error loading fallback model: {fallback_error}")
+            raise fallback_error
 
 
-# Load model saat cold start
-print("Initializing model...")
-model = load_model_from_firebase_storage()
+# Model akan di-load secara lazy saat function pertama kali dipanggil
+# Tidak di-load saat deployment untuk avoid timeout
+# model = load_model_from_firebase_storage()  # Commented out untuk avoid deployment timeout
 
 
 def calculate_similarity(key_answer: str, student_answer: str) -> float:
@@ -115,23 +140,34 @@ def calculate_similarity(key_answer: str, student_answer: str) -> float:
     Returns:
         float: Similarity score antara 0.0 - 1.0
     """
-    if not key_answer or not student_answer:
+    try:
+        if not key_answer or not student_answer:
+            return 0.0
+
+        # Pastikan model sudah loaded
+        global model
+        if model is None:
+            print("Model belum loaded, loading sekarang...")
+            model = load_model_from_firebase_storage()
+
+        # Encode kedua teks menjadi embeddings
+        # Sama seperti di notebook: model.encode([text1, text2], convert_to_tensor=True)
+        embeddings = model.encode([key_answer, student_answer], convert_to_tensor=True)
+
+        # Import util saat diperlukan (lazy import)
+        from sentence_transformers import util
+
+        # Hitung cosine similarity
+        # Sama seperti di notebook: util.cos_sim(embeddings[0], embeddings[1])
+        similarity = util.cos_sim(embeddings[0], embeddings[1])
+
+        return float(similarity.item())
+    except Exception as e:
+        import traceback
+        print(f"❌ Error in calculate_similarity: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        # Return 0.0 jika ada error
         return 0.0
-
-    # Pastikan model sudah loaded
-    global model
-    if model is None:
-        model = load_model_from_firebase_storage()
-
-    # Encode kedua teks menjadi embeddings
-    # Sama seperti di notebook: model.encode([text1, text2], convert_to_tensor=True)
-    embeddings = model.encode([key_answer, student_answer], convert_to_tensor=True)
-
-    # Hitung cosine similarity
-    # Sama seperti di notebook: util.cos_sim(embeddings[0], embeddings[1])
-    similarity = util.cos_sim(embeddings[0], embeddings[1])
-
-    return float(similarity.item())
 
 
 def calculate_final_score(similarity: float, max_score: int) -> int:
@@ -189,75 +225,10 @@ def create_response(data: dict, status: int = 200) -> https_fn.Response:
     )
 
 
-@https_fn.on_request(memory=1024, timeout_sec=120, cors=True)  # 1GB memory untuk model, 2min timeout
-def score_essay(req: https_fn.Request) -> https_fn.Response:
-    """
-    HTTP Cloud Function untuk scoring satu essay.
+# Function score_essay dihapus karena tidak digunakan
+# Hanya score_exam yang digunakan oleh Next.js
 
-    Input JSON:
-    {
-        "key_answer": "The correct answer text...",
-        "student_answer": "Student's answer text...",
-        "max_score": 20  // Optional, default 100
-    }
-
-    Output JSON:
-    {
-        "similarity_score": 0.85,
-        "final_score": 17,
-        "max_score": 20,
-        "status": "success"
-    }
-    """
-    # Handle preflight CORS request
-    if req.method == "OPTIONS":
-        return create_response({}, 204)
-
-    # Hanya terima POST request
-    if req.method != "POST":
-        return create_response({"error": "Method not allowed", "status": "error"}, 405)
-
-    try:
-        # Parse request body
-        request_json = req.get_json(silent=True)
-
-        if not request_json:
-            return create_response({"error": "Invalid JSON body", "status": "error"}, 400)
-
-        key_answer = request_json.get("key_answer", "").strip()
-        student_answer = request_json.get("student_answer", "").strip()
-        max_score = request_json.get("max_score", 100)
-
-        # Validasi input
-        if not key_answer:
-            return create_response({"error": "key_answer is required", "status": "error"}, 400)
-
-        if not student_answer:
-            # Jika tidak ada jawaban, return score 0
-            return create_response({
-                "similarity_score": 0.0,
-                "final_score": 0,
-                "max_score": max_score,
-                "status": "success"
-            })
-
-        # Hitung similarity
-        similarity_score = calculate_similarity(key_answer, student_answer)
-        final_score = calculate_final_score(similarity_score, max_score)
-
-        return create_response({
-            "similarity_score": round(similarity_score, 4),
-            "final_score": final_score,
-            "max_score": max_score,
-            "status": "success"
-        })
-
-    except Exception as e:
-        print(f"Error processing request: {str(e)}")
-        return create_response({"error": str(e), "status": "error"}, 500)
-
-
-@https_fn.on_request(memory=512, timeout_sec=120, cors=True)
+@https_fn.on_request(memory=1024, timeout_sec=120, cors=True)
 def score_exam(req: https_fn.Request) -> https_fn.Response:
     """
     HTTP Cloud Function untuk scoring seluruh exam sekaligus.
@@ -291,19 +262,35 @@ def score_exam(req: https_fn.Request) -> https_fn.Response:
         "status": "success"
     }
     """
-    if req.method == "OPTIONS":
-        return create_response({}, 204)
-
-    if req.method != "POST":
-        return create_response({"error": "Method not allowed", "status": "error"}, 405)
+    print(f"📥 score_exam called: method={req.method}")
 
     try:
+        if req.method == "OPTIONS":
+            print("✅ OPTIONS request - returning CORS headers")
+            return create_response({}, 204)
+
+        if req.method != "POST":
+            print(f"❌ Invalid method: {req.method}")
+            return create_response({"error": "Method not allowed", "status": "error"}, 405)
+    except Exception as e:
+        import traceback
+        print(f"❌ Error in request handling: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return create_response({
+            "error": f"Request handling error: {str(e)}",
+            "status": "error"
+        }, 500)
+
+    try:
+        print("📝 Parsing request JSON...")
         request_json = req.get_json(silent=True)
 
         if not request_json or "answers" not in request_json:
+            print("❌ Invalid request: answers array is required")
             return create_response({"error": "answers array is required", "status": "error"}, 400)
 
         answers = request_json.get("answers", [])
+        print(f"✅ Processing {len(answers)} answers...")
         results = []
         total_score = 0
         total_max_score = 0
@@ -339,5 +326,13 @@ def score_exam(req: https_fn.Request) -> https_fn.Response:
         })
 
     except Exception as e:
-        print(f"Error processing exam: {str(e)}")
-        return create_response({"error": str(e), "status": "error"}, 500)
+        import traceback
+        error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        print(f"❌ Error processing exam: {error_msg}")
+        print(f"Traceback: {error_traceback}")
+        return create_response({
+            "error": error_msg,
+            "status": "error",
+            "details": error_traceback if "DEBUG" in os.environ else None
+        }, 500)

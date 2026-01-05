@@ -1,7 +1,8 @@
 # Firebase Functions Gen 2 Dependencies untuk AI Scoring
 
 # Firebase Functions Gen 2
-firebase-functions>=1.0.0
+# Note: Versi terbaru yang tersedia adalah 0.5.0 (belum 1.0.0)
+firebase-functions>=0.5.0
 firebase-admin>=6.0.0
 
 # AI/ML dependencies
@@ -19,4 +20,4 @@ google-cloud-storage==2.14.0
 # - Pastikan Cloud Function memiliki memory minimal 1GB untuk model
 # - Cold start bisa memakan waktu 30-60 detik untuk download dan load model pertama kali
 # - Model akan di-download dari Firebase Storage ke /tmp/ saat cold start
-
+# - PENTING: Virtual environment HARUS menggunakan Python 3.11 (bukan 3.13)
